@@ -45,6 +45,23 @@ class _GalleryScreenState extends State<GalleryScreen> {
     HapticFeedback.selectionClick();
   }
 
+  void _selectAll() {
+    final allIds = _photos.map((p) => p['id'] as int).toSet();
+    final allSelected = _selectedIds.length == _photos.length;
+    setState(() {
+      if (allSelected) {
+        _selectedIds.clear();
+        _isSelectionMode = false;
+      } else {
+        _selectedIds
+          ..clear()
+          ..addAll(allIds);
+        _isSelectionMode = true;
+      }
+    });
+    HapticFeedback.mediumImpact();
+  }
+
   Future<void> _deleteSelected() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -86,10 +103,28 @@ class _GalleryScreenState extends State<GalleryScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: Text(_isSelectionMode ? '${_selectedIds.length} SELECTED' : 'GALLERY', style: TacticalDesign.heading.copyWith(fontSize: 16)),
+        title: Text(
+          _isSelectionMode
+              ? (_selectedIds.length == _photos.length
+                  ? 'ALL ${_selectedIds.length} SELECTED'
+                  : '${_selectedIds.length} SELECTED')
+              : 'GALLERY',
+          style: TacticalDesign.heading.copyWith(fontSize: 16),
+        ),
         backgroundColor: Colors.black,
         elevation: 0,
         actions: [
+          if (_photos.isNotEmpty)
+            IconButton(
+              tooltip: _selectedIds.length == _photos.length ? 'Deselect All' : 'Select All',
+              icon: Icon(
+                _selectedIds.length == _photos.length
+                    ? Icons.deselect
+                    : Icons.select_all,
+                color: TacticalDesign.accentGreen,
+              ),
+              onPressed: _selectAll,
+            ),
           if (_isSelectionMode)
             IconButton(
               icon: const Icon(Icons.delete_sweep, color: TacticalDesign.alertRed),

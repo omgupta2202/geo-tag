@@ -1,4 +1,4 @@
-package com.example.geo_lens
+package com.geolens.app
 
 import io.flutter.embedding.android.FlutterActivity
 

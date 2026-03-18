@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 
-class LocationService with ChangeNotifier {
+class LocationService with ChangeNotifier, WidgetsBindingObserver {
   Position? _currentPosition;
   String? _currentAddress;
   String? _cityState;
@@ -24,11 +24,22 @@ class LocationService with ChangeNotifier {
   bool get serviceDisabled => _serviceDisabled;
 
   LocationService() {
+    WidgetsBinding.instance.addObserver(this);
     _initLocation();
+  }
+
+  /// Auto-retry when user returns to the app after enabling GPS / granting permission.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        (_permissionDenied || _serviceDisabled || _currentPosition == null)) {
+      retryPermission();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _refreshTimer?.cancel();
     super.dispose();
   }

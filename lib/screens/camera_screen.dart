@@ -7,7 +7,6 @@ import 'package:geo_lens/services/database_service.dart';
 import 'package:geo_lens/services/settings_service.dart';
 import 'package:geo_lens/services/watermark_service.dart';
 import 'package:geo_lens/services/map_tile_service.dart';
-import 'package:geo_lens/utils/rolling_digit.dart';
 import 'package:geo_lens/utils/tactical_design.dart';
 import 'package:geo_lens/screens/settings_screen.dart';
 import 'package:geo_lens/screens/gallery_screen.dart';
