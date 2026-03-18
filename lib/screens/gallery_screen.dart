@@ -223,7 +223,7 @@ class _StaggeredGalleryItemState extends State<_StaggeredGalleryItem> with Ticke
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: widget.isSelected ? [
                     BoxShadow(
-                      color: Colors.blue.withOpacity(0.3 + (_selectionPulseController.value * 0.4)),
+                      color: TacticalDesign.accentGreen.withOpacity(0.3 + (_selectionPulseController.value * 0.4)),
                       blurRadius: 10 + (_selectionPulseController.value * 10),
                       spreadRadius: 2,
                     )
@@ -235,15 +235,21 @@ class _StaggeredGalleryItemState extends State<_StaggeredGalleryItem> with Ticke
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(16),
-                        child: Image.file(File(widget.photo['file_path']), fit: BoxFit.cover),
+                        child: Image.file(
+                          File(widget.photo['file_path']),
+                          fit: BoxFit.cover,
+                          // Force cache invalidation so gallery always shows the watermarked image
+                          cacheWidth: 600,
+                          key: ValueKey(widget.photo['file_path']),
+                        ),
                       ),
                       if (widget.isSelected)
                         Positioned.fill(
                           child: Container(
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(16),
-                              color: Colors.blue.withOpacity(0.1),
-                              border: Border.all(color: Colors.blue, width: 3),
+                              color: TacticalDesign.accentGreen.withOpacity(0.1),
+                              border: Border.all(color: TacticalDesign.accentGreen, width: 3),
                             ),
                           ),
                         ),
@@ -251,7 +257,7 @@ class _StaggeredGalleryItemState extends State<_StaggeredGalleryItem> with Ticke
                         const Positioned(
                           top: 10,
                           right: 10,
-                          child: Icon(Icons.check_circle, color: Colors.blue, size: 24),
+                          child: Icon(Icons.check_circle, color: TacticalDesign.accentGreen, size: 24),
                         ),
                     ],
                   ),

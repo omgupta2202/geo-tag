@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
@@ -39,17 +40,32 @@ class DatabaseService {
   }
 
   Future<int> insertPhoto(Map<String, dynamic> photo) async {
-    final db = await database;
-    return await db.insert('photos', photo);
+    try {
+      final db = await database;
+      return await db.insert('photos', photo);
+    } catch (e) {
+      debugPrint('DB insertPhoto error: $e');
+      return -1;
+    }
   }
 
   Future<List<Map<String, dynamic>>> queryAllPhotos() async {
-    final db = await database;
-    return await db.query('photos', orderBy: 'id DESC');
+    try {
+      final db = await database;
+      return await db.query('photos', orderBy: 'id DESC');
+    } catch (e) {
+      debugPrint('DB queryAllPhotos error: $e');
+      return [];
+    }
   }
 
   Future<int> deletePhoto(int id) async {
-    final db = await database;
-    return await db.delete('photos', where: 'id = ?', whereArgs: [id]);
+    try {
+      final db = await database;
+      return await db.delete('photos', where: 'id = ?', whereArgs: [id]);
+    } catch (e) {
+      debugPrint('DB deletePhoto error: $e');
+      return -1;
+    }
   }
 }

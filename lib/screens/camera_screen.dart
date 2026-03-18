@@ -6,10 +6,12 @@ import 'package:geo_lens/services/sensor_service.dart';
 import 'package:geo_lens/services/database_service.dart';
 import 'package:geo_lens/services/settings_service.dart';
 import 'package:geo_lens/services/watermark_service.dart';
+import 'package:geo_lens/services/map_tile_service.dart';
 import 'package:geo_lens/utils/rolling_digit.dart';
 import 'package:geo_lens/utils/tactical_design.dart';
 import 'package:geo_lens/screens/settings_screen.dart';
 import 'package:geo_lens/screens/gallery_screen.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
@@ -128,9 +130,23 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
       final sensor = Provider.of<SensorService>(context, listen: false);
       final db = Provider.of<DatabaseService>(context, listen: false);
       final settings = Provider.of<SettingsService>(context, listen: false);
-      final timestamp = DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
+      final now = DateTime.now();
+      final timeZoneOffset = now.timeZoneOffset;
+      final sign = timeZoneOffset.isNegative ? '-' : '+';
+      final tzHours = timeZoneOffset.inHours.abs().toString().padLeft(2, '0');
+      final tzMins = (timeZoneOffset.inMinutes.abs() % 60).toString().padLeft(2, '0');
+      final timestamp = DateFormat("EEEE, dd/MM/yyyy hh:mm a").format(now) + ' GMT $sign$tzHours:$tzMins';
       
-      _triggerFlyToGallery(imageFile.path);
+      // Save watermarked file FIRST, then trigger fly animation with correct path
+      final directory = await getApplicationDocumentsDirectory();
+      final String filePath = path.join(directory.path, 'GEOLENS_${DateTime.now().millisecondsSinceEpoch}.jpg');
+
+      // Fetch real satellite tile (Esri World Imagery, free, no key)
+      final Uint8List? mapTile = await MapTileService.fetchTile(
+        location.currentPosition?.latitude ?? 0.0,
+        location.currentPosition?.longitude ?? 0.0,
+        zoom: 17,
+      );
 
       final Uint8List burnedBytes = await WatermarkService.burnMetadata(
         WatermarkParams(
@@ -141,14 +157,21 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
           heading: sensor.heading,
           caption: settings.customCaption,
           timestamp: timestamp,
-          address: location.currentAddress ?? 'UNKNOWN LOCATION',
+          address: location.currentAddress ?? 'Unknown Location',
+          cityState: location.cityState ?? location.currentAddress ?? 'Unknown Location',
+          country: location.country ?? '',
           visibility: settings.overlays,
+          mapTileBytes: mapTile,
         ),
       );
 
-      final directory = await getApplicationDocumentsDirectory();
-      final String filePath = path.join(directory.path, 'GEOLENS_${DateTime.now().millisecondsSinceEpoch}.jpg');
       await File(filePath).writeAsBytes(burnedBytes);
+
+      // Evict any cached version so gallery always loads the watermarked file
+      await FileImage(File(filePath)).evict();
+
+      // Trigger fly animation AFTER watermarked file is saved
+      _triggerFlyToGallery(filePath);
 
       await db.insertPhoto({
         'file_path': filePath,
@@ -274,104 +297,97 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
   }
 
   Widget _buildSpatialHUD(LocationService location, SensorService sensor, SettingsService settings) {
-    // Parallax logic: Tilt the card based on phone orientation
-    // We use a small factor to keep it subtle
-    double tiltX = (sensor.pitch / 90.0).clamp(-0.1, 0.1);
-    double tiltY = (sensor.roll / 90.0).clamp(-0.1, 0.1);
+    final lat = location.currentPosition?.latitude ?? 0.0;
+    final lng = location.currentPosition?.longitude ?? 0.0;
+    final hasLocation = location.currentPosition != null;
+
+    final now = DateTime.now();
+    final tzOffset = now.timeZoneOffset;
+    final sign = tzOffset.isNegative ? '-' : '+';
+    final tzH = tzOffset.inHours.abs().toString().padLeft(2, '0');
+    final tzM = (tzOffset.inMinutes.abs() % 60).toString().padLeft(2, '0');
+    final timestamp = DateFormat("EEEE, dd/MM/yyyy hh:mm a").format(now) + ' GMT $sign$tzH:$tzM';
 
     return Positioned(
-      bottom: 125,
-      left: 16,
-      child: Transform(
-        transform: Matrix4.identity()
-          ..setEntry(3, 2, 0.001) // perspective
-          ..rotateX(tiltX)
-          ..rotateY(tiltY),
-        alignment: Alignment.center,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-              width: 280,
-              decoration: BoxDecoration(
-                color: Colors.black, // Fully opaque
-                border: Border.all(color: Colors.white.withOpacity(0.1)),
-              ),
+      bottom: 150,
+      left: 12,
+      right: 12,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: const Color(0xEE101010),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withOpacity(0.12)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Satellite map thumbnail
+            SizedBox(
+              width: 100,
+              height: 100,
+              child: hasLocation
+                  ? _HudMapThumbnail(lat: lat, lng: lng)
+                  : ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        color: const Color(0xFF1E2A1A),
+                        child: const Center(child: Icon(Icons.satellite_alt, color: Colors.white24, size: 30)),
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 10),
+            // Info column
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                   if (settings.isOverlayEnabled('accuracy'))
-                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('SATELLITE TELEMETRY', style: TacticalDesign.hudText.copyWith(fontSize: 8, color: TacticalDesign.accentGreen, letterSpacing: 1.5)),
-                        Text('±${location.currentPosition?.accuracy.toStringAsFixed(1) ?? '0.0'}M', style: TacticalDesign.hudText.copyWith(fontSize: 9, color: Colors.white70)),
-                      ],
-                    ),
-                  if (settings.isOverlayEnabled('accuracy'))
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8.0),
-                      child: Divider(color: Colors.white10, height: 1),
-                    ),
-                  // Current Address (Human Readable)
-                  if (settings.isOverlayEnabled('location'))
+                  // GPS Map Camera brand (top-right)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      const Icon(Icons.camera_alt, size: 9, color: Colors.white38),
+                      const SizedBox(width: 3),
+                      Text('GPS Map Camera', style: TacticalDesign.hudText.copyWith(fontSize: 9, color: Colors.white38)),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  if (settings.isOverlayEnabled('location')) ...[
+                    // City / State / Country headline
                     Text(
-                      location.currentAddress?.toUpperCase() ?? 'FETCHING ADDR...',
-                      style: TacticalDesign.hudText.copyWith(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 0.5,
-                        shadows: [const Shadow(color: Colors.black45, blurRadius: 2, offset: Offset(1, 1))],
-                      ),
+                      location.cityState ?? (location.isLoading ? 'Locating...' : 'Unknown Location'),
+                      style: GoogleFonts.outfit(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, height: 1.2),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  if (settings.isOverlayEnabled('location')) const SizedBox(height: 10),
-                  if (settings.isOverlayEnabled('location'))
-                    Row(
-                      children: [
-                        Expanded(child: _spatialData('LATITUDE', (location.currentPosition?.latitude ?? 0.0).toStringAsFixed(6))),
-                        Expanded(child: _spatialData('LONGITUDE', (location.currentPosition?.longitude ?? 0.0).toStringAsFixed(6))),
-                      ],
+                    const SizedBox(height: 2),
+                    // Full address
+                    Text(
+                      location.currentAddress ?? '',
+                      style: TacticalDesign.hudText.copyWith(fontSize: 9, color: const Color(0xFFCCCCCC), height: 1.3),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  if (settings.isOverlayEnabled('location') && (settings.isOverlayEnabled('altitude') || settings.isOverlayEnabled('compass')))
-                    const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      if (settings.isOverlayEnabled('altitude'))
-                        Expanded(child: _spatialData('ALTITUDE', '${location.currentPosition?.altitude.toStringAsFixed(1) ?? '0.0'}M')),
-                      if (settings.isOverlayEnabled('compass'))
-                        Expanded(child: _spatialData('BEARING', '${sensor.heading.toStringAsFixed(0)}° ${sensor.getHeadingDirection()}')),
-                    ],
+                    const SizedBox(height: 5),
+                    // Coordinates with degree symbol
+                    Text(
+                      'Lat ${lat.toStringAsFixed(6)}°  Long ${lng.toStringAsFixed(6)}°',
+                      style: TacticalDesign.hudText.copyWith(fontSize: 9.5, color: Colors.white70),
+                    ),
+                  ],
+                  const SizedBox(height: 3),
+                  // Timestamp
+                  Text(
+                    timestamp,
+                    style: TacticalDesign.hudText.copyWith(fontSize: 9, color: Colors.white54),
                   ),
                 ],
               ),
             ),
-          ),
+          ],
         ),
       ),
-    );
-  }
-
-  Widget _spatialData(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: TacticalDesign.hudText.copyWith(fontSize: 7, color: Colors.white38)),
-        Text(
-          value,
-          style: TacticalDesign.hudText.copyWith(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            shadows: [
-              const Shadow(color: TacticalDesign.accentGreen, blurRadius: 4),
-            ],
-          ),
-        ),
-      ],
     );
   }
 
@@ -495,6 +511,65 @@ class _GPSPulsePainter extends CustomPainter {
   bool shouldRepaint(_GPSPulsePainter oldDelegate) => true;
 }
 
+// ── Satellite map thumbnail for the camera HUD ────────────────────────────────
+class _HudMapThumbnail extends StatefulWidget {
+  final double lat;
+  final double lng;
+  const _HudMapThumbnail({required this.lat, required this.lng});
+
+  @override
+  State<_HudMapThumbnail> createState() => _HudMapThumbnailState();
+}
+
+class _HudMapThumbnailState extends State<_HudMapThumbnail> {
+  Uint8List? _tileBytes;
+  String? _currentKey;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchTile();
+  }
+
+  @override
+  void didUpdateWidget(_HudMapThumbnail old) {
+    super.didUpdateWidget(old);
+    final key = '${widget.lat.toStringAsFixed(3)}_${widget.lng.toStringAsFixed(3)}';
+    if (key != _currentKey) _fetchTile();
+  }
+
+  Future<void> _fetchTile() async {
+    final key = '${widget.lat.toStringAsFixed(3)}_${widget.lng.toStringAsFixed(3)}';
+    _currentKey = key;
+    final bytes = await MapTileService.fetchTile(widget.lat, widget.lng, zoom: 17);
+    if (mounted && _currentKey == key && bytes != null) {
+      setState(() => _tileBytes = bytes);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (_tileBytes != null)
+            Image.memory(_tileBytes!, fit: BoxFit.cover)
+          else
+            Container(
+              color: const Color(0xFF1E2A1A),
+              child: const Center(child: Icon(Icons.satellite_alt, color: Colors.white24, size: 30)),
+            ),
+          const Center(
+            child: Icon(Icons.location_pin, color: Colors.red, size: 28),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _FlyToGalleryAnimation extends StatefulWidget {
   final String imagePath;
   final Offset startPosition;
@@ -527,8 +602,12 @@ class _FlyToGalleryAnimationState extends State<_FlyToGalleryAnimation> with Sin
 
   // Bezier curve point calculation
   Offset _getBezierPath(double t) {
-    // Control point to create a "liquid" curve towards the gallery dock
-    final Offset controlPoint = Offset(widget.startPosition.dx + 100, widget.startPosition.dy - 200);
+    // Control point adapts to screen size for consistent arc across devices
+    final screenSize = MediaQuery.of(context).size;
+    final Offset controlPoint = Offset(
+      screenSize.width * 0.5,
+      widget.startPosition.dy - screenSize.height * 0.25,
+    );
     
     // Quadratic Bezier: (1-t)^2*P0 + 2(1-t)t*P1 + t^2*P2
     double x = math.pow(1 - t, 2) * widget.startPosition.dx + 
@@ -552,7 +631,7 @@ class _FlyToGalleryAnimationState extends State<_FlyToGalleryAnimation> with Sin
           left: currentPos.dx,
           top: currentPos.dy,
           child: Opacity(
-            opacity: 1 - _animation.value.clamp(0.8, 1.0) * 5 + 4,
+          opacity: (1 - _animation.value).clamp(0.0, 1.0),
             child: Transform.rotate(
               angle: _animation.value * 0.5, // Subtle rotation while flying
               child: Transform.scale(

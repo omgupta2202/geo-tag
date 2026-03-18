@@ -3,8 +3,28 @@ import 'package:provider/provider.dart';
 import 'package:geo_lens/services/settings_service.dart';
 import 'package:geo_lens/utils/tactical_design.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  late TextEditingController _captionController;
+
+  @override
+  void initState() {
+    super.initState();
+    final service = Provider.of<SettingsService>(context, listen: false);
+    _captionController = TextEditingController(text: service.customCaption);
+  }
+
+  @override
+  void dispose() {
+    _captionController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +59,7 @@ class SettingsScreen extends StatelessWidget {
         Text('CUSTOM CAPTION', style: TacticalDesign.hudText.copyWith(color: TacticalDesign.accentGreen, fontSize: 12, letterSpacing: 2)),
         const SizedBox(height: 12),
         TextField(
-          controller: TextEditingController(text: service.customCaption)..selection = TextSelection.collapsed(offset: service.customCaption.length),
+          controller: _captionController,
           style: TacticalDesign.hudText,
           decoration: InputDecoration(
             filled: true,
