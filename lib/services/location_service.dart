@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
@@ -9,21 +10,39 @@ class LocationService with ChangeNotifier {
   String? _country;
   bool _isLoading = true;
   bool _isFetchingAddress = false;
+  bool _permissionDenied = false;
+  bool _serviceDisabled = false;
+
+  Timer? _refreshTimer;
 
   Position? get currentPosition => _currentPosition;
   String? get currentAddress => _currentAddress;
   String? get cityState => _cityState;
   String? get country => _country;
   bool get isLoading => _isLoading || _isFetchingAddress;
+  bool get permissionDenied => _permissionDenied;
+  bool get serviceDisabled => _serviceDisabled;
 
   LocationService() {
     _initLocation();
   }
 
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
   Future<void> _initLocation() async {
+    _permissionDenied = false;
+    _serviceDisabled = false;
+
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       _isLoading = false;
+      _serviceDisabled = true;
+      _currentAddress = 'Location services are off';
+      _cityState = 'Enable GPS';
       notifyListeners();
       return;
     }
@@ -35,16 +54,31 @@ class LocationService with ChangeNotifier {
     if (permission == LocationPermission.denied ||
         permission == LocationPermission.deniedForever) {
       _isLoading = false;
+      _permissionDenied = true;
       _currentAddress = 'Location permission denied';
-      _cityState = 'Unknown Location';
+      _cityState = 'Tap to allow';
       notifyListeners();
       return;
     }
 
+    // Get an immediate fix so the HUD is populated fast
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      ).timeout(const Duration(seconds: 10));
+      _currentPosition = pos;
+      _isLoading = false;
+      notifyListeners();
+      _fetchAddress(pos);
+    } catch (_) {
+      // Fall through to stream if quick fix fails
+    }
+
+    // Stream for movement-based updates
     Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 5,
+        distanceFilter: 10,
       ),
     ).listen((position) {
       _currentPosition = position;
@@ -52,7 +86,34 @@ class LocationService with ChangeNotifier {
       notifyListeners();
       _fetchAddress(position);
     });
+
+    // Periodic refresh every 30 s — keeps address fresh when stationary
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
+      if (_currentPosition == null) return;
+      try {
+        final fresh = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        ).timeout(const Duration(seconds: 8));
+        _currentPosition = fresh;
+        notifyListeners();
+        _fetchAddress(fresh);
+      } catch (_) {}
+    });
   }
+
+  /// Re-request permission and restart location (call after user taps the banner).
+  Future<void> retryPermission() async {
+    _isLoading = true;
+    _permissionDenied = false;
+    _serviceDisabled = false;
+    notifyListeners();
+    await _initLocation();
+  }
+
+  /// Open device location/app settings so user can grant permission.
+  Future<void> openLocationSettings() => Geolocator.openLocationSettings();
+  Future<void> openAppSettings() => Geolocator.openAppSettings();
 
   /// Returns true if [s] looks like a Plus Code (e.g. "H9FQ+WQH")
   static bool _isPlusCode(String s) {
@@ -71,7 +132,6 @@ class LocationService with ChangeNotifier {
       if (placemarks.isNotEmpty) {
         final p = placemarks[0];
 
-        // ── Full address — skip Plus Codes and blank fields ──────────────
         String? safeName;
         if (p.name != null &&
             p.name!.isNotEmpty &&
@@ -104,14 +164,12 @@ class LocationService with ChangeNotifier {
           addrParts.add(p.country!);
         }
 
-        // Deduplicate consecutive identical parts
         final deduped = <String>[];
         for (final part in addrParts) {
           if (deduped.isEmpty || deduped.last != part) deduped.add(part);
         }
         _currentAddress = deduped.join(', ');
 
-        // ── City, State, Country headline ────────────────────────────────
         final headline = <String>[];
         if (p.locality != null && p.locality!.isNotEmpty) {
           headline.add(p.locality!);

@@ -32,7 +32,7 @@ class MapTileService {
             'Cache-Control': 'no-cache',
             'Pragma': 'no-cache',
           })
-          .timeout(const Duration(seconds: 8));
+          .timeout(const Duration(seconds: 4));
 
       if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
         return response.bodyBytes;
@@ -57,7 +57,7 @@ class MapTileService {
             'User-Agent': 'GeoLens/1.0 (Flutter)',
             'Cache-Control': 'no-cache',
           })
-          .timeout(const Duration(seconds: 6));
+          .timeout(const Duration(seconds: 3));
       if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
         return response.bodyBytes;
       }

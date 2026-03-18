@@ -12,6 +12,7 @@ import 'package:geo_lens/utils/tactical_design.dart';
 import 'package:geo_lens/screens/settings_screen.dart';
 import 'package:geo_lens/screens/gallery_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:geolocator/geolocator.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
@@ -33,7 +34,7 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
   List<CameraDescription>? _cameras;
   bool _isInitialized = false;
   bool _isCapturing = false;
-  
+
   // Zoom Logic
   double _minZoomLevel = 1.0;
   double _maxZoomLevel = 5.0;
@@ -46,8 +47,13 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
   late AnimationController _shutterController;
   late AnimationController _gpsPulseController;
   late AnimationController _rippleController;
-  
+
   final GlobalKey _galleryButtonKey = GlobalKey();
+
+  // Pre-cached map tile — fetched as soon as GPS locks, reused at capture time
+  Uint8List? _cachedMapTile;
+  String? _cachedTileKey;
+  LocationService? _locationService;
 
   @override
   void initState() {
@@ -56,6 +62,14 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
     _shutterController = AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
     _gpsPulseController = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat();
     _rippleController = AnimationController(vsync: this, duration: const Duration(milliseconds: 2000));
+
+    // Attach location listener after first frame so Provider is available
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _locationService = Provider.of<LocationService>(context, listen: false);
+      _locationService!.addListener(_onLocationChanged);
+      // Trigger immediately if GPS is already locked
+      if (_locationService!.currentPosition != null) _onLocationChanged();
+    });
   }
 
   Future<void> _initCamera() async {
@@ -76,12 +90,26 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
 
   @override
   void dispose() {
+    _locationService?.removeListener(_onLocationChanged);
     _shutterController.dispose();
     _gpsPulseController.dispose();
     _rippleController.dispose();
     _zoomTimer?.cancel();
     _controller?.dispose();
     super.dispose();
+  }
+
+  void _onLocationChanged() {
+    final pos = _locationService?.currentPosition;
+    if (pos == null) return;
+    final key = '${pos.latitude.toStringAsFixed(3)}_${pos.longitude.toStringAsFixed(3)}';
+    if (key == _cachedTileKey) return;
+    _cachedTileKey = key;
+    MapTileService.fetchTile(pos.latitude, pos.longitude, zoom: 17).then((bytes) {
+      if (mounted && bytes != null && _cachedTileKey == key) {
+        _cachedMapTile = bytes;
+      }
+    });
   }
 
   void _handleScaleStart(ScaleStartDetails details) {
@@ -141,8 +169,9 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
       final directory = await getApplicationDocumentsDirectory();
       final String filePath = path.join(directory.path, 'GEOLENS_${DateTime.now().millisecondsSinceEpoch}.jpg');
 
-      // Fetch real satellite tile (Esri World Imagery, free, no key)
-      final Uint8List? mapTile = await MapTileService.fetchTile(
+      // Use pre-cached tile (fetched when GPS locked) — falls back to a
+      // fresh fetch only if cache is empty (very first capture before tile loads).
+      final Uint8List? mapTile = _cachedMapTile ?? await MapTileService.fetchTile(
         location.currentPosition?.latitude ?? 0.0,
         location.currentPosition?.longitude ?? 0.0,
         zoom: 17,
@@ -269,6 +298,52 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
   }
 
   Widget _buildGPSStatus(LocationService location) {
+    // Permission denied or service off — show a tappable banner
+    if (location.permissionDenied || location.serviceDisabled) {
+      return Positioned(
+        top: MediaQuery.of(context).padding.top + 8,
+        left: 16,
+        right: 16,
+        child: GestureDetector(
+          onTap: () async {
+            if (location.serviceDisabled) {
+              await location.openLocationSettings();
+            } else {
+              // Try re-requesting; if permanently denied, open app settings
+              final perm = await Geolocator.checkPermission();
+              if (perm == LocationPermission.deniedForever) {
+                await location.openAppSettings();
+              } else {
+                await location.retryPermission();
+              }
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: TacticalDesign.alertRed.withOpacity(0.85),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.location_off, color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    location.serviceDisabled
+                        ? 'GPS is off — tap to enable'
+                        : 'Location permission denied — tap to fix',
+                    style: TacticalDesign.hudText.copyWith(fontSize: 11, color: Colors.white),
+                  ),
+                ),
+                const Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 12),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Positioned(
       top: MediaQuery.of(context).padding.top + 10,
       left: 20,
