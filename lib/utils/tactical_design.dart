@@ -7,6 +7,7 @@ class TacticalDesign {
   static const Color surface = Color(0xFF121212);
   static const Color accentGreen = Color(0xFF00E676);
   static const Color alertRed = Color(0xFFFF5252);
+  static const Color warningAmber = Color(0xFFFFB300);
   
   // HUD Text Styles
   static TextStyle get hudText => GoogleFonts.shareTechMono(

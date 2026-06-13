@@ -7,6 +7,7 @@ class WatermarkParams {
   final double latitude;
   final double longitude;
   final double altitude;
+  final double accuracy;
   final double heading;
   final String caption;
   final String timestamp;
@@ -21,6 +22,7 @@ class WatermarkParams {
     required this.latitude,
     required this.longitude,
     required this.altitude,
+    this.accuracy = 0.0,
     required this.heading,
     required this.caption,
     required this.timestamp,
@@ -170,9 +172,12 @@ class WatermarkService {
       }
       textY += sectionGap;
 
+      final String accSuffix = params.accuracy > 0
+          ? '  (\u00b1${params.accuracy.round()}m)'
+          : '';
       final String coordLine =
           'Lat ${params.latitude.toStringAsFixed(6)}\u00b0  '
-          'Long ${params.longitude.toStringAsFixed(6)}\u00b0';
+          'Long ${params.longitude.toStringAsFixed(6)}\u00b0$accSuffix';
       img.drawString(stamp, coordLine, font: fontBody,
           x: textX, y: textY, color: img.ColorRgba8(190, 190, 190, 215));
       textY += hBody + lineGap + sectionGap;

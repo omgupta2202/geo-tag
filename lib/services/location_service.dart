@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
@@ -13,7 +14,18 @@ class LocationService with ChangeNotifier, WidgetsBindingObserver {
   bool _permissionDenied = false;
   bool _serviceDisabled = false;
 
-  Timer? _refreshTimer;
+  StreamSubscription<Position>? _positionSub;
+  bool _starting = false;
+
+  // Throttle reverse-geocoding: only re-resolve the address after we have
+  // moved a meaningful distance, otherwise the platform geocoder gets
+  // hammered (and rate-limited) on every GPS tick.
+  Position? _lastGeocodedPos;
+  static const double _geocodeMinMove = 40.0; // metres
+
+  // A fix is considered "locked" (accurate enough to rely on) once its
+  // reported accuracy is within this radius.
+  static const double _accurateThreshold = 30.0; // metres
 
   Position? get currentPosition => _currentPosition;
   String? get currentAddress => _currentAddress;
@@ -22,6 +34,13 @@ class LocationService with ChangeNotifier, WidgetsBindingObserver {
   bool get isLoading => _isLoading || _isFetchingAddress;
   bool get permissionDenied => _permissionDenied;
   bool get serviceDisabled => _serviceDisabled;
+
+  /// Reported horizontal accuracy of the current fix, in metres (null if no fix).
+  double? get accuracyMeters => _currentPosition?.accuracy;
+
+  /// True once we have a fix tight enough to trust (≤ [_accurateThreshold] m).
+  bool get hasAccurateFix =>
+      _currentPosition != null && _currentPosition!.accuracy <= _accurateThreshold;
 
   LocationService() {
     WidgetsBinding.instance.addObserver(this);
@@ -40,77 +59,120 @@ class LocationService with ChangeNotifier, WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _refreshTimer?.cancel();
+    _positionSub?.cancel();
     super.dispose();
   }
 
+  /// Platform-tuned settings asking for the highest accuracy the device offers.
+  LocationSettings _bestSettings() {
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return AndroidSettings(
+        accuracy: LocationAccuracy.best,
+        distanceFilter: 0, // stream every fix so accuracy can converge while still
+        intervalDuration: const Duration(seconds: 1),
+        useMSLAltitude: true, // true mean-sea-level altitude (better than ellipsoidal)
+      );
+    }
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      return AppleSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 0,
+      );
+    }
+    return const LocationSettings(accuracy: LocationAccuracy.best);
+  }
+
   Future<void> _initLocation() async {
+    if (_starting) return; // guard against overlapping starts (resume/retry spam)
+    _starting = true;
     _permissionDenied = false;
     _serviceDisabled = false;
 
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      _isLoading = false;
-      _serviceDisabled = true;
-      _currentAddress = 'Location services are off';
-      _cityState = 'Enable GPS';
-      notifyListeners();
-      return;
-    }
-
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      _isLoading = false;
-      _permissionDenied = true;
-      _currentAddress = 'Location permission denied';
-      _cityState = 'Tap to allow';
-      notifyListeners();
-      return;
-    }
-
-    // Get an immediate fix so the HUD is populated fast
     try {
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-      ).timeout(const Duration(seconds: 10));
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        _isLoading = false;
+        _serviceDisabled = true;
+        _currentAddress = 'Location services are off';
+        _cityState = 'Enable GPS';
+        notifyListeners();
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        _isLoading = false;
+        _permissionDenied = true;
+        _currentAddress = 'Location permission denied';
+        _cityState = 'Tap to allow';
+        notifyListeners();
+        return;
+      }
+
+      // Get an immediate fix so the HUD is populated fast.
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          locationSettings: _bestSettings(),
+        ).timeout(const Duration(seconds: 10));
+        _handlePosition(pos);
+      } catch (_) {
+        // Fall through to the stream if the quick fix fails/times out.
+      }
+
+      // Single position stream — cancel any previous one first so repeated
+      // starts (app resume, permission retry) never stack subscriptions.
+      await _positionSub?.cancel();
+      _positionSub = Geolocator.getPositionStream(
+        locationSettings: _bestSettings(),
+      ).listen(
+        _handlePosition,
+        onError: (e) => debugPrint('Position stream error: $e'),
+      );
+    } finally {
+      _starting = false;
+    }
+  }
+
+  /// Single sink for every incoming fix. Keeps the best reading and avoids
+  /// letting a worse/jittery fix clobber a good one.
+  void _handlePosition(Position pos) {
+    if (_shouldAccept(pos)) {
       _currentPosition = pos;
       _isLoading = false;
       notifyListeners();
-      _fetchAddress(pos);
-    } catch (_) {
-      // Fall through to stream if quick fix fails
-    }
-
-    // Stream for movement-based updates
-    Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 10,
-      ),
-    ).listen((position) {
-      _currentPosition = position;
+      _maybeFetchAddress(pos);
+    } else if (_isLoading) {
+      // Even a rejected fix clears the spinner once we have something.
       _isLoading = false;
       notifyListeners();
-      _fetchAddress(position);
-    });
+    }
+  }
 
-    // Periodic refresh every 30 s — keeps address fresh when stationary
-    _refreshTimer?.cancel();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
-      if (_currentPosition == null) return;
-      try {
-        final fresh = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-        ).timeout(const Duration(seconds: 8));
-        _currentPosition = fresh;
-        notifyListeners();
-        _fetchAddress(fresh);
-      } catch (_) {}
-    });
+  /// Decide whether [n] is worth promoting to the current fix.
+  bool _shouldAccept(Position n) {
+    final c = _currentPosition;
+    if (c == null) return true;
+
+    // Clearly tighter accuracy — always take it.
+    if (n.accuracy + 1 < c.accuracy) return true;
+
+    final moved = Geolocator.distanceBetween(
+        c.latitude, c.longitude, n.latitude, n.longitude);
+
+    // Genuine movement (beyond GPS noise), as long as the new fix isn't far worse.
+    if (moved > 5 && n.accuracy <= c.accuracy + 20) return true;
+
+    // Refresh a stale fix.
+    final age = n.timestamp.difference(c.timestamp);
+    if (age > const Duration(seconds: 12) && n.accuracy <= c.accuracy + 20) {
+      return true;
+    }
+
+    return false;
   }
 
   /// Re-request permission and restart location (call after user taps the banner).
@@ -130,6 +192,22 @@ class LocationService with ChangeNotifier, WidgetsBindingObserver {
   static bool _isPlusCode(String s) {
     return RegExp(r'^[23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]{2,3}$')
         .hasMatch(s.trim().toUpperCase());
+  }
+
+  /// Only reverse-geocode when we've moved far enough (or haven't resolved an
+  /// address yet) — protects against the platform geocoder's rate limits.
+  void _maybeFetchAddress(Position position) {
+    if (_isFetchingAddress) return;
+    if (_lastGeocodedPos != null) {
+      final moved = Geolocator.distanceBetween(
+        _lastGeocodedPos!.latitude,
+        _lastGeocodedPos!.longitude,
+        position.latitude,
+        position.longitude,
+      );
+      if (moved < _geocodeMinMove) return;
+    }
+    _fetchAddress(position);
   }
 
   Future<void> _fetchAddress(Position position) async {
@@ -193,11 +271,16 @@ class LocationService with ChangeNotifier, WidgetsBindingObserver {
         }
         _cityState = headline.isNotEmpty ? headline.join(', ') : 'Unknown Location';
         _country = p.country;
+
+        // Remember where this address was resolved so we can throttle the next call.
+        _lastGeocodedPos = position;
       }
     } catch (e) {
       debugPrint('Geocoding error: $e');
-      _currentAddress = 'Address unavailable';
-      _cityState = 'Unknown Location';
+      // Leave any previously resolved address in place; only show the fallback
+      // if we never managed to resolve one.
+      _currentAddress ??= 'Address unavailable';
+      _cityState ??= 'Unknown Location';
     } finally {
       _isFetchingAddress = false;
       notifyListeners();

@@ -14,7 +14,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:geolocator/geolocator.dart';
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui';
 import 'dart:math' as math;
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -28,7 +27,8 @@ class CameraScreen extends StatefulWidget {
   State<CameraScreen> createState() => _CameraScreenState();
 }
 
-class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMixin {
+class _CameraScreenState extends State<CameraScreen>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   CameraController? _controller;
   List<CameraDescription>? _cameras;
   bool _isInitialized = false;
@@ -57,6 +57,7 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initCamera();
     _shutterController = AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
     _gpsPulseController = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat();
@@ -73,13 +74,18 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
 
   Future<void> _initCamera() async {
     try {
-      _cameras = await availableCameras();
+      _cameras ??= await availableCameras();
       if (_cameras != null && _cameras!.isNotEmpty) {
-        _controller = CameraController(_cameras![0], ResolutionPreset.high, enableAudio: false);
-        await _controller!.initialize();
-        _minZoomLevel = await _controller!.getMinZoomLevel();
-        _maxZoomLevel = await _controller!.getMaxZoomLevel();
-        if (!mounted) return;
+        final controller = CameraController(_cameras![0], ResolutionPreset.high, enableAudio: false);
+        _controller = controller;
+        await controller.initialize();
+        _minZoomLevel = await controller.getMinZoomLevel();
+        _maxZoomLevel = await controller.getMaxZoomLevel();
+        _currentZoomLevel = 1.0;
+        if (!mounted) {
+          controller.dispose();
+          return;
+        }
         setState(() => _isInitialized = true);
       }
     } catch (e) {
@@ -87,8 +93,25 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
     }
   }
 
+  /// Free the camera when backgrounded and rebuild it on resume — otherwise the
+  /// preview comes back frozen/black and capture can throw on a disposed controller.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final controller = _controller;
+    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      if (controller != null && controller.value.isInitialized) {
+        _controller = null;
+        if (mounted) setState(() => _isInitialized = false);
+        controller.dispose();
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      if (_controller == null) _initCamera();
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _locationService?.removeListener(_onLocationChanged);
     _shutterController.dispose();
     _gpsPulseController.dispose();
@@ -150,13 +173,16 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
     _rippleController.forward(from: 0.0);
     HapticFeedback.heavyImpact();
 
+    // Resolve providers BEFORE any await so we never touch BuildContext across
+    // an async gap (the widget could be disposed mid-capture otherwise).
+    final location = Provider.of<LocationService>(context, listen: false);
+    final sensor = Provider.of<SensorService>(context, listen: false);
+    final db = Provider.of<DatabaseService>(context, listen: false);
+    final settings = Provider.of<SettingsService>(context, listen: false);
+
     try {
       final XFile imageFile = await _controller!.takePicture();
       final Uint8List originalBytes = await imageFile.readAsBytes();
-      final location = Provider.of<LocationService>(context, listen: false);
-      final sensor = Provider.of<SensorService>(context, listen: false);
-      final db = Provider.of<DatabaseService>(context, listen: false);
-      final settings = Provider.of<SettingsService>(context, listen: false);
       final now = DateTime.now();
       final timeZoneOffset = now.timeZoneOffset;
       final sign = timeZoneOffset.isNegative ? '-' : '+';
@@ -182,6 +208,7 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
           latitude: location.currentPosition?.latitude ?? 0.0,
           longitude: location.currentPosition?.longitude ?? 0.0,
           altitude: location.currentPosition?.altitude ?? 0.0,
+          accuracy: location.accuracyMeters ?? 0.0,
           heading: sensor.heading,
           caption: settings.customCaption,
           timestamp: timestamp,
@@ -351,10 +378,16 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
           AnimatedBuilder(
             animation: _gpsPulseController,
             builder: (context, child) {
+              // Red while searching, amber until the fix is tight, green once accurate.
+              final Color statusColor = location.currentPosition == null
+                  ? TacticalDesign.alertRed
+                  : (location.hasAccurateFix
+                      ? TacticalDesign.accentGreen
+                      : TacticalDesign.warningAmber);
               return CustomPaint(
                 painter: _GPSPulsePainter(
                   progress: _gpsPulseController.value,
-                  color: location.isLoading ? TacticalDesign.alertRed : TacticalDesign.accentGreen,
+                  color: statusColor,
                 ),
                 child: const SizedBox(width: 24, height: 24),
               );
@@ -362,12 +395,20 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
           ),
           const SizedBox(width: 12),
           Text(
-            location.isLoading ? 'SEARCHING GNSS...' : 'GNSS LOCKED',
+            _gpsStatusLabel(location),
             style: TacticalDesign.hudText.copyWith(fontSize: 10, letterSpacing: 2),
           ),
         ],
       ),
     );
+  }
+
+  String _gpsStatusLabel(LocationService location) {
+    if (location.currentPosition == null) return 'SEARCHING GNSS...';
+    final acc = location.accuracyMeters;
+    if (acc == null) return 'GNSS LOCKED';
+    final label = location.hasAccurateFix ? 'GNSS LOCKED' : 'REFINING';
+    return '$label · ±${acc.round()}m';
   }
 
   Widget _buildSpatialHUD(LocationService location, SensorService sensor, SettingsService settings) {
@@ -449,6 +490,20 @@ class _CameraScreenState extends State<CameraScreen> with TickerProviderStateMix
                       'Lat ${lat.toStringAsFixed(6)}°  Long ${lng.toStringAsFixed(6)}°',
                       style: TacticalDesign.hudText.copyWith(fontSize: 9.5, color: Colors.white70),
                     ),
+                    // GPS accuracy radius
+                    if (settings.isOverlayEnabled('accuracy') &&
+                        location.accuracyMeters != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'Accuracy ±${location.accuracyMeters!.round()} m',
+                        style: TacticalDesign.hudText.copyWith(
+                          fontSize: 9,
+                          color: location.hasAccurateFix
+                              ? TacticalDesign.accentGreen
+                              : TacticalDesign.warningAmber,
+                        ),
+                      ),
+                    ],
                   ],
                   const SizedBox(height: 3),
                   // Timestamp

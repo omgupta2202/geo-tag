@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Share+Tech+Mono&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+
+  .stage {
+    position: relative;
+    width: 1024px;
+    height: 500px;
+    overflow: hidden;
+    background:
+      radial-gradient(1200px 700px at 78% 50%, rgba(0,191,165,0.16) 0%, rgba(0,191,165,0) 55%),
+      radial-gradient(900px 600px at 12% 18%, rgba(0,230,118,0.10) 0%, rgba(0,230,118,0) 50%),
+      linear-gradient(135deg, #06100d 0%, #0a1310 45%, #050a08 100%);
+    font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  /* subtle grid texture */
+  .grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,230,118,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,230,118,0.05) 1px, transparent 1px);
+    background-size: 46px 46px;
+    -webkit-mask-image: radial-gradient(900px 500px at 30% 50%, rgba(0,0,0,0.55), rgba(0,0,0,0) 75%);
+            mask-image: radial-gradient(900px 500px at 30% 50%, rgba(0,0,0,0.55), rgba(0,0,0,0) 75%);
+  }
+
+  /* ===== TOP-LEFT LOCKUP ===== */
+  .lockup {
+    position: absolute;
+    top: 46px;
+    left: 64px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    z-index: 5;
+  }
+  .lockup img {
+    width: 70px;
+    height: 70px;
+    border-radius: 16px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,230,118,0.18);
+  }
+  .lockup .name {
+    font-weight: 800;
+    font-size: 34px;
+    letter-spacing: 0.3px;
+    color: #ffffff;
+  }
+  .lockup .name .g { color: #00E676; }
+  .lockup .sub {
+    font-family: 'Share Tech Mono', ui-monospace, monospace;
+    font-size: 13px;
+    letter-spacing: 2.5px;
+    color: rgba(0,191,165,0.85);
+    text-transform: uppercase;
+    margin-top: 3px;
+  }
+
+  /* ===== HEADLINE ===== */
+  .headline {
+    position: absolute;
+    left: 64px;
+    top: 175px;
+    z-index: 5;
+  }
+  .headline .line {
+    font-weight: 800;
+    font-size: 86px;
+    line-height: 0.97;
+    letter-spacing: -2px;
+    color: #ffffff;
+  }
+  .headline .green {
+    color: #00E676;
+    text-shadow: 0 0 38px rgba(0,230,118,0.45);
+  }
+
+  /* ===== BOTTOM MONO LINE ===== */
+  .specline {
+    position: absolute;
+    left: 66px;
+    bottom: 52px;
+    z-index: 5;
+    font-family: 'Share Tech Mono', ui-monospace, monospace;
+    font-size: 22px;
+    letter-spacing: 1px;
+    color: rgba(235,255,245,0.92);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .specline .dot { color: #00BFA5; font-weight: 700; }
+  .specline .lbl { color: #ffffff; }
+
+  /* accent underline above spec line */
+  .accent-bar {
+    position: absolute;
+    left: 66px;
+    bottom: 96px;
+    width: 92px;
+    height: 5px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #00E676, #00BFA5);
+    box-shadow: 0 0 18px rgba(0,230,118,0.55);
+    z-index: 5;
+  }
+
+  /* ===== RIGHT APERTURE ===== */
+  .aperture {
+    position: absolute;
+    right: -160px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 660px;
+    height: 660px;
+    z-index: 2;
+    filter: drop-shadow(0 0 50px rgba(0,191,165,0.30));
+  }
+  .glow-behind {
+    position: absolute;
+    right: -120px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 620px;
+    height: 620px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 50%, rgba(0,191,165,0.22) 0%, rgba(0,191,165,0) 62%);
+    z-index: 1;
+  }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="grid"></div>
+    <div class="glow-behind"></div>
+
+    <!-- Right aperture motif -->
+    <svg class="aperture" viewBox="0 0 660 660" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bladeA" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#00E676"/>
+          <stop offset="100%" stop-color="#00BFA5"/>
+        </linearGradient>
+        <linearGradient id="bladeB" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#00BFA5"/>
+          <stop offset="100%" stop-color="#018a78"/>
+        </linearGradient>
+        <radialGradient id="glass" cx="42%" cy="38%" r="70%">
+          <stop offset="0%" stop-color="#0e3b35"/>
+          <stop offset="55%" stop-color="#0a2a26"/>
+          <stop offset="100%" stop-color="#06100d"/>
+        </radialGradient>
+        <radialGradient id="pinG" cx="38%" cy="30%" r="75%">
+          <stop offset="0%" stop-color="#ff8a8a"/>
+          <stop offset="42%" stop-color="#FF5252"/>
+          <stop offset="100%" stop-color="#c81f1f"/>
+        </radialGradient>
+      </defs>
+
+      <!-- outer thin ring -->
+      <circle cx="330" cy="330" r="318" fill="none" stroke="rgba(0,230,118,0.16)" stroke-width="2"/>
+      <circle cx="330" cy="330" r="300" fill="none" stroke="rgba(0,191,165,0.30)" stroke-width="3"/>
+
+      <!-- aperture blades (12 wedges alternating) -->
+      <g transform="translate(330,330)">
+        <!-- generate blades -->
+        <g>
+          <!-- 6 main blades -->
+          <path d="M0 0 L255 -52 A260 260 0 0 1 255 52 Z" fill="url(#bladeA)" opacity="0.95" transform="rotate(0)"/>
+          <path d="M0 0 L255 -52 A260 260 0 0 1 255 52 Z" fill="url(#bladeB)" opacity="0.92" transform="rotate(60)"/>
+          <path d="M0 0 L255 -52 A260 260 0 0 1 255 52 Z" fill="url(#bladeA)" opacity="0.95" transform="rotate(120)"/>
+          <path d="M0 0 L255 -52 A260 260 0 0 1 255 52 Z" fill="url(#bladeB)" opacity="0.92" transform="rotate(180)"/>
+          <path d="M0 0 L255 -52 A260 260 0 0 1 255 52 Z" fill="url(#bladeA)" opacity="0.95" transform="rotate(240)"/>
+          <path d="M0 0 L255 -52 A260 260 0 0 1 255 52 Z" fill="url(#bladeB)" opacity="0.92" transform="rotate(300)"/>
+        </g>
+        <!-- blade separators (hexagonal facets) -->
+        <g stroke="rgba(6,16,13,0.85)" stroke-width="6" fill="none">
+          <line x1="0" y1="0" x2="262" y2="-53"/>
+          <line x1="0" y1="0" x2="262" y2="-53" transform="rotate(60)"/>
+          <line x1="0" y1="0" x2="262" y2="-53" transform="rotate(120)"/>
+          <line x1="0" y1="0" x2="262" y2="-53" transform="rotate(180)"/>
+          <line x1="0" y1="0" x2="262" y2="-53" transform="rotate(240)"/>
+          <line x1="0" y1="0" x2="262" y2="-53" transform="rotate(300)"/>
+        </g>
+      </g>
+
+      <!-- inner radar glass -->
+      <circle cx="330" cy="330" r="150" fill="url(#glass)" stroke="rgba(0,191,165,0.55)" stroke-width="3"/>
+      <circle cx="330" cy="330" r="118" fill="none" stroke="rgba(0,191,165,0.30)" stroke-width="2"/>
+      <circle cx="330" cy="330" r="86" fill="none" stroke="rgba(0,191,165,0.22)" stroke-width="2"/>
+      <!-- crosshair -->
+      <line x1="330" y1="195" x2="330" y2="245" stroke="rgba(0,230,118,0.45)" stroke-width="2"/>
+      <line x1="330" y1="415" x2="330" y2="465" stroke="rgba(0,230,118,0.45)" stroke-width="2"/>
+      <line x1="195" y1="330" x2="245" y2="330" stroke="rgba(0,230,118,0.45)" stroke-width="2"/>
+      <line x1="415" y1="330" x2="465" y2="330" stroke="rgba(0,230,118,0.45)" stroke-width="2"/>
+
+      <!-- RED GPS pin -->
+      <g transform="translate(330,322)">
+        <path d="M0 64 C -34 18 -44 4 -44 -16 A44 44 0 1 1 44 -16 C 44 4 34 18 0 64 Z"
+              fill="url(#pinG)" stroke="rgba(255,255,255,0.18)" stroke-width="1.5"/>
+        <circle cx="0" cy="-16" r="17" fill="#1a0808"/>
+        <circle cx="0" cy="-16" r="8" fill="#ffffff"/>
+        <ellipse cx="-12" cy="-32" rx="13" ry="8" fill="rgba(255,255,255,0.40)"/>
+      </g>
+    </svg>
+
+    <!-- Top-left lockup -->
+    <div class="lockup">
+      <img src="file:///Users/omgupta/Documents/personal/projects/geo-tag/assets/icon/play_store_512.png" alt="GeoLens">
+      <div>
+        <div class="name"><span class="g">Geo</span>Lens</div>
+        <div class="sub">GPS Map Camera</div>
+      </div>
+    </div>
+
+    <!-- Headline -->
+    <div class="headline">
+      <div class="line">EVERY PHOTO,</div>
+      <div class="line green">GEOTAGGED.</div>
+    </div>
+
+    <!-- Accent bar + spec line -->
+    <div class="accent-bar"></div>
+    <div class="specline">
+      <span class="lbl">GPS</span><span class="dot">&bull;</span>
+      <span class="lbl">Satellite map</span><span class="dot">&bull;</span>
+      <span class="lbl">Address</span><span class="dot">&bull;</span>
+      <span class="lbl">Timestamp</span>
+    </div>
+  </div>
+</body>
+</html>

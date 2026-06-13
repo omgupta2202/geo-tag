@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Share+Tech+Mono&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+
+  .stage {
+    width: 1024px;
+    height: 500px;
+    overflow: hidden;
+    position: relative;
+    background:
+      radial-gradient(120% 140% at 18% 50%, #0d1f1a 0%, #081310 45%, #030706 100%);
+    font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  /* subtle topographic / radar grid texture */
+  .grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,230,118,0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,230,118,0.045) 1px, transparent 1px);
+    background-size: 46px 46px;
+    mask-image: radial-gradient(120% 120% at 60% 50%, #000 0%, rgba(0,0,0,0.25) 70%, transparent 100%);
+    -webkit-mask-image: radial-gradient(120% 120% at 60% 50%, #000 0%, rgba(0,0,0,0.25) 70%, transparent 100%);
+  }
+
+  /* ambient corner glows */
+  .glowTeal {
+    position: absolute;
+    width: 620px; height: 620px;
+    left: -160px; top: 50%;
+    transform: translateY(-50%);
+    background: radial-gradient(circle, rgba(0,191,165,0.20) 0%, rgba(0,191,165,0) 62%);
+    filter: blur(8px);
+  }
+
+  /* ===== LEFT EMBLEM PANEL ===== */
+  .left {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 38%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.012), rgba(0,0,0,0.18));
+  }
+  /* radar rings behind icon */
+  .ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(0,230,118,0.16);
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+  }
+  .ring.r1 { width: 330px; height: 330px; }
+  .ring.r2 { width: 410px; height: 410px; border-color: rgba(0,191,165,0.12); }
+  .ring.r3 { width: 492px; height: 492px; border-color: rgba(0,191,165,0.07); }
+
+  .iconWrap {
+    position: relative;
+    width: 300px; height: 300px;
+    border-radius: 64px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .iconGlow {
+    position: absolute;
+    inset: -34px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,230,118,0.42) 0%, rgba(0,191,165,0.12) 48%, rgba(0,0,0,0) 70%);
+    filter: blur(6px);
+  }
+  .iconWrap img {
+    position: relative;
+    width: 300px; height: 300px;
+    border-radius: 64px;
+    box-shadow:
+      0 24px 60px rgba(0,0,0,0.55),
+      0 0 0 1px rgba(0,230,118,0.18);
+  }
+
+  /* ===== DIVIDER ===== */
+  .divider {
+    position: absolute;
+    left: 38%;
+    top: 12%;
+    bottom: 12%;
+    width: 2px;
+    background: linear-gradient(180deg,
+      rgba(0,230,118,0) 0%,
+      rgba(0,230,118,0.85) 22%,
+      rgba(0,230,118,0.95) 50%,
+      rgba(0,230,118,0.85) 78%,
+      rgba(0,230,118,0) 100%);
+    box-shadow: 0 0 14px rgba(0,230,118,0.55);
+  }
+
+  /* ===== RIGHT CONTENT ===== */
+  .right {
+    position: absolute;
+    left: 38%; right: 0; top: 0; bottom: 0;
+    padding: 0 40px 0 60px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .wordmark {
+    font-weight: 800;
+    font-size: 92px;
+    line-height: 1.0;
+    letter-spacing: -1.5px;
+  }
+  .wordmark .geo { color: #00E676; }
+  .wordmark .lens { color: #FFFFFF; }
+
+  .subtitle {
+    margin-top: 14px;
+    font-family: 'Share Tech Mono', ui-monospace, 'SF Mono', monospace;
+    font-size: 25px;
+    letter-spacing: 7px;
+    color: #00BFA5;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .subtitle .pin {
+    color: #FF5252;
+    font-size: 22px;
+  }
+
+  .tagline {
+    margin-top: 26px;
+    max-width: 540px;
+    font-weight: 600;
+    font-size: 30px;
+    line-height: 1.32;
+    color: #E6F2EC;
+  }
+  .tagline .hl { color: #00E676; font-weight: 700; }
+
+  .chips {
+    margin-top: 34px;
+    display: flex;
+    gap: 14px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    gap: 9px;
+    padding: 12px 20px;
+    border-radius: 999px;
+    border: 1.5px solid rgba(0,230,118,0.55);
+    background: rgba(0,230,118,0.06);
+    color: #CFF7E3;
+    font-weight: 600;
+    font-size: 22px;
+    letter-spacing: 0.2px;
+  }
+  .chip .dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: #00E676;
+    box-shadow: 0 0 10px rgba(0,230,118,0.9);
+  }
+  .chip.alt { border-color: rgba(0,191,165,0.55); background: rgba(0,191,165,0.06); }
+  .chip.alt .dot { background: #00BFA5; box-shadow: 0 0 10px rgba(0,191,165,0.9); }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="grid"></div>
+    <div class="glowTeal"></div>
+
+    <!-- LEFT EMBLEM -->
+    <div class="left">
+      <div class="ring r3"></div>
+      <div class="ring r2"></div>
+      <div class="ring r1"></div>
+      <div class="iconWrap">
+        <div class="iconGlow"></div>
+        <img src="file:///Users/omgupta/Documents/personal/projects/geo-tag/assets/icon/play_store_512.png" alt="GeoLens">
+      </div>
+    </div>
+
+    <!-- DIVIDER -->
+    <div class="divider"></div>
+
+    <!-- RIGHT CONTENT -->
+    <div class="right">
+      <div class="wordmark"><span class="geo">Geo</span><span class="lens">Lens</span></div>
+      <div class="subtitle"><span class="pin">&#9679;</span>GPS MAP CAMERA</div>
+      <div class="tagline">GPS, satellite map &amp; address &mdash; <span class="hl">burned into every photo.</span></div>
+      <div class="chips">
+        <div class="chip"><span class="dot"></span>Geotag</div>
+        <div class="chip alt"><span class="dot"></span>Timestamp</div>
+        <div class="chip"><span class="dot"></span>Satellite map</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

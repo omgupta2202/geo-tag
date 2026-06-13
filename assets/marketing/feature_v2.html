@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Share+Tech+Mono&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+
+  #stage {
+    position: relative;
+    width: 1024px;
+    height: 500px;
+    overflow: hidden;
+    background:
+      radial-gradient(120% 130% at 38% 45%, #0e1f1a 0%, #0a1612 38%, #060d0b 70%, #000000 100%);
+    font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+  }
+
+  /* faint map / grid texture */
+  #grid {
+    position: absolute;
+    inset: -40px;
+    background-image:
+      linear-gradient(rgba(0,230,118,0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,230,118,0.045) 1px, transparent 1px),
+      linear-gradient(rgba(0,191,165,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,191,165,0.025) 1px, transparent 1px);
+    background-size: 92px 92px, 92px 92px, 23px 23px, 23px 23px;
+    background-position: center;
+    mask-image: radial-gradient(120% 120% at 50% 50%, #000 30%, rgba(0,0,0,0.15) 100%);
+    -webkit-mask-image: radial-gradient(120% 120% at 50% 50%, #000 30%, rgba(0,0,0,0.15) 100%);
+  }
+
+  /* large faint radar sweep glow behind icon */
+  #radarGlow {
+    position: absolute;
+    left: 235px;
+    top: 250px;
+    width: 520px;
+    height: 520px;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(circle, rgba(0,230,118,0.16) 0%, rgba(0,191,165,0.08) 35%, transparent 65%);
+    filter: blur(6px);
+  }
+
+  /* concentric faint radar rings behind icon */
+  #rings {
+    position: absolute;
+    left: 235px;
+    top: 250px;
+    transform: translate(-50%, -50%);
+  }
+
+  /* corner crosshair ticks */
+  .tick { position: absolute; }
+  .tick svg { display: block; }
+  .tl { top: 22px; left: 22px; }
+  .tr { top: 22px; right: 22px; }
+  .bl { bottom: 22px; left: 22px; }
+  .br { bottom: 22px; right: 22px; }
+
+  /* icon */
+  #icon {
+    position: absolute;
+    left: 235px;
+    top: 250px;
+    width: 322px;
+    height: 322px;
+    transform: translate(-50%, -50%);
+    filter: drop-shadow(0 12px 40px rgba(0,230,118,0.28)) drop-shadow(0 4px 18px rgba(0,0,0,0.6));
+    /* feather the square edges so the icon's black plate blends into the bg */
+    -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 64%, transparent 80%);
+    mask-image: radial-gradient(circle at 50% 50%, #000 64%, transparent 80%);
+  }
+
+  /* text block */
+  #text {
+    position: absolute;
+    left: 470px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 500px;
+  }
+
+  #wordmark {
+    font-weight: 800;
+    font-size: 104px;
+    line-height: 0.95;
+    letter-spacing: -2px;
+    white-space: nowrap;
+  }
+  #wordmark .geo {
+    color: #00E676;
+    text-shadow: 0 0 28px rgba(0,230,118,0.35);
+  }
+  #wordmark .lens {
+    color: #ffffff;
+  }
+
+  #underline {
+    margin-top: 14px;
+    width: 268px;
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #00E676 0%, #00BFA5 100%);
+    box-shadow: 0 0 18px rgba(0,230,118,0.5);
+  }
+
+  #tagline {
+    margin-top: 26px;
+    font-family: 'Share Tech Mono', ui-monospace, monospace;
+    font-size: 28px;
+    letter-spacing: 2px;
+    color: #cfe9df;
+  }
+  #tagline .dot { color: #00E676; }
+
+  /* small feature pills */
+  #pills {
+    margin-top: 30px;
+    display: flex;
+    gap: 12px;
+  }
+  .pill {
+    font-family: 'Share Tech Mono', ui-monospace, monospace;
+    font-size: 22px;
+    letter-spacing: 1px;
+    color: #9fd9c6;
+    padding: 9px 16px;
+    border: 1px solid rgba(0,230,118,0.30);
+    border-radius: 7px;
+    background: rgba(0,230,118,0.05);
+  }
+
+  /* faint coordinate readout */
+  #coords {
+    position: absolute;
+    left: 50%;
+    bottom: 34px;
+    transform: translateX(-50%);
+    font-family: 'Share Tech Mono', ui-monospace, monospace;
+    font-size: 22px;
+    letter-spacing: 4px;
+    color: rgba(0,230,118,0.32);
+    white-space: nowrap;
+  }
+  #coords .pin { color: rgba(255,82,82,0.55); }
+
+  /* top status readout, low opacity */
+  #status {
+    position: absolute;
+    left: 470px;
+    top: 60px;
+    font-family: 'Share Tech Mono', ui-monospace, monospace;
+    font-size: 22px;
+    letter-spacing: 3px;
+    color: rgba(0,191,165,0.45);
+  }
+  #status .live { color: rgba(255,82,82,0.7); }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <div id="grid"></div>
+    <div id="radarGlow"></div>
+
+    <svg id="rings" width="520" height="520" viewBox="0 0 520 520">
+      <circle cx="260" cy="260" r="248" fill="none" stroke="rgba(0,230,118,0.10)" stroke-width="1.5"/>
+      <circle cx="260" cy="260" r="200" fill="none" stroke="rgba(0,191,165,0.08)" stroke-width="1.5"/>
+      <circle cx="260" cy="260" r="150" fill="none" stroke="rgba(0,230,118,0.06)" stroke-width="1.5"/>
+      <line x1="260" y1="6" x2="260" y2="40" stroke="rgba(0,230,118,0.14)" stroke-width="1.5"/>
+      <line x1="260" y1="480" x2="260" y2="514" stroke="rgba(0,230,118,0.14)" stroke-width="1.5"/>
+      <line x1="6" y1="260" x2="40" y2="260" stroke="rgba(0,230,118,0.14)" stroke-width="1.5"/>
+      <line x1="480" y1="260" x2="514" y2="260" stroke="rgba(0,230,118,0.14)" stroke-width="1.5"/>
+    </svg>
+
+    <!-- corner crosshair ticks -->
+    <div class="tick tl">
+      <svg width="46" height="46"><path d="M0 1 H30 M1 0 V30" stroke="#00E676" stroke-width="2" fill="none" opacity="0.55"/></svg>
+    </div>
+    <div class="tick tr">
+      <svg width="46" height="46"><path d="M46 1 H16 M45 0 V30" stroke="#00E676" stroke-width="2" fill="none" opacity="0.55"/></svg>
+    </div>
+    <div class="tick bl">
+      <svg width="46" height="46"><path d="M0 45 H30 M1 46 V16" stroke="#00E676" stroke-width="2" fill="none" opacity="0.55"/></svg>
+    </div>
+    <div class="tick br">
+      <svg width="46" height="46"><path d="M46 45 H16 M45 46 V16" stroke="#00E676" stroke-width="2" fill="none" opacity="0.55"/></svg>
+    </div>
+
+    <img id="icon" src="file:///Users/omgupta/Documents/personal/projects/geo-tag/assets/icon/play_store_512.png" alt="">
+
+    <div id="status">[ GPS&nbsp;&nbsp;LOCK ]&nbsp;&nbsp;<span class="live">● REC</span></div>
+
+    <div id="text">
+      <div id="wordmark"><span class="geo">Geo</span><span class="lens">Lens</span></div>
+      <div id="underline"></div>
+      <div id="tagline">Every photo, geotagged<span class="dot">.</span></div>
+      <div id="pills">
+        <div class="pill">MAP</div>
+        <div class="pill">ADDRESS</div>
+        <div class="pill">TIMESTAMP</div>
+      </div>
+    </div>
+
+    <div id="coords">28.6139&deg; N&nbsp;&nbsp;&nbsp;<span class="pin">+</span>&nbsp;&nbsp;&nbsp;77.2090&deg; E&nbsp;&nbsp;&nbsp;&middot;&nbsp;&nbsp;&nbsp;ALT 216m&nbsp;&nbsp;&nbsp;&middot;&nbsp;&nbsp;&nbsp;ON-DEVICE</div>
+  </div>
+</body>
+</html>

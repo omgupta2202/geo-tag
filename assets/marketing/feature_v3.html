@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Share+Tech+Mono&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+
+  .stage {
+    position: relative;
+    width: 1024px;
+    height: 500px;
+    overflow: hidden;
+    background:
+      radial-gradient(1100px 700px at 78% 18%, rgba(0,191,165,0.18) 0%, rgba(0,191,165,0) 55%),
+      radial-gradient(900px 600px at 12% 95%, rgba(0,230,118,0.14) 0%, rgba(0,230,118,0) 55%),
+      linear-gradient(135deg, #06100d 0%, #0a1310 45%, #050b09 100%);
+    font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  /* faint tactical grid */
+  .grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,230,118,0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,230,118,0.045) 1px, transparent 1px);
+    background-size: 46px 46px;
+    -webkit-mask-image: radial-gradient(900px 600px at 60% 50%, #000 30%, transparent 85%);
+            mask-image: radial-gradient(900px 600px at 60% 50%, #000 30%, transparent 85%);
+  }
+
+  /* ===== LEFT COLUMN ===== */
+  .left {
+    position: absolute;
+    left: 64px;
+    top: 0;
+    height: 500px;
+    width: 520px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    z-index: 5;
+  }
+
+  .lockup {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 30px;
+  }
+  .lockup img {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    box-shadow: 0 6px 22px rgba(0,191,165,0.30), 0 0 0 1px rgba(0,230,118,0.18);
+  }
+  .lockup .name {
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    line-height: 1;
+  }
+  .lockup .name .geo { color: #00E676; }
+  .lockup .name .lens { color: #ffffff; }
+  .lockup .tag {
+    font-family: 'Share Tech Mono', ui-monospace, monospace;
+    font-size: 12.5px;
+    letter-spacing: 2.5px;
+    color: #5fd3bd;
+    margin-top: 5px;
+    text-transform: uppercase;
+  }
+
+  .headline {
+    font-size: 66px;
+    font-weight: 800;
+    line-height: 0.98;
+    letter-spacing: -1.6px;
+    color: #ffffff;
+    margin-bottom: 22px;
+  }
+  .headline .hl {
+    color: #00E676;
+    position: relative;
+  }
+
+  .subtitle {
+    font-size: 21px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: #c4d4ce;
+    max-width: 440px;
+  }
+  .subtitle b { color: #ffffff; font-weight: 700; }
+
+  .chips {
+    display: flex;
+    gap: 10px;
+    margin-top: 30px;
+  }
+  .chip {
+    font-family: 'Share Tech Mono', ui-monospace, monospace;
+    font-size: 12.5px;
+    letter-spacing: 1px;
+    color: #9fe9d4;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(0,191,165,0.32);
+    background: rgba(0,191,165,0.08);
+  }
+  .chip .dot { color: #00E676; }
+
+  /* ===== RIGHT COLUMN — PHOTO + WATERMARK CARD ===== */
+  .photo {
+    position: absolute;
+    right: 52px;
+    top: 70px;
+    width: 392px;
+    height: 360px;
+    border-radius: 22px;
+    overflow: hidden;
+    box-shadow:
+      0 30px 70px rgba(0,0,0,0.65),
+      0 0 0 1px rgba(255,255,255,0.06),
+      0 0 60px rgba(0,191,165,0.12);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.06), rgba(0,0,0,0.0) 30%),
+      linear-gradient(160deg, #16352b 0%, #0e2a23 35%, #0a1f1a 70%, #07140f 100%);
+    transform: rotate(-1.4deg);
+    z-index: 4;
+  }
+  /* photo-ish content: a faked horizon / site scene using gradients */
+  .photo .scene {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(420px 200px at 70% 14%, rgba(255,220,150,0.22), rgba(255,220,150,0) 60%),
+      linear-gradient(180deg, #1c3f4a 0%, #173842 26%, #12303a 42%, #2a3a30 43%, #2f4234 60%, #20301f 100%);
+  }
+  .photo .haze {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,0.55) 100%);
+  }
+  /* subtle scanlines for camera feel */
+  .photo .grain {
+    position: absolute; inset: 0;
+    background-image: repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 1px, transparent 1px, transparent 3px);
+    opacity: 0.5;
+  }
+  .rec {
+    position: absolute;
+    top: 14px; left: 16px;
+    display: flex; align-items: center; gap: 7px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px; color: #ffd9d9; letter-spacing: 1px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  }
+  .rec .reddot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: #FF5252; box-shadow: 0 0 8px #FF5252;
+  }
+
+  /* WATERMARK CARD */
+  .card {
+    position: absolute;
+    left: 16px; right: 16px; bottom: 16px;
+    background: rgba(8,16,13,0.74);
+    border: 1px solid rgba(0,230,118,0.20);
+    border-radius: 14px;
+    padding: 12px 13px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+  .tile {
+    position: relative;
+    width: 74px; height: 74px;
+    flex: 0 0 74px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(0,230,118,0.30);
+    background:
+      radial-gradient(60px 60px at 30% 25%, rgba(0,230,118,0.55), rgba(0,230,118,0) 70%),
+      linear-gradient(135deg, #00BFA5 0%, #009e88 40%, #0a6f5e 100%);
+  }
+  /* map "roads" on the tile */
+  .tile .road1, .tile .road2, .tile .road3 {
+    position: absolute; background: rgba(255,255,255,0.20);
+  }
+  .tile .road1 { left: 0; right: 0; top: 30%; height: 3px; transform: rotate(-8deg); }
+  .tile .road2 { top: 0; bottom: 0; left: 56%; width: 3px; transform: rotate(6deg); }
+  .tile .road3 { left: -10%; right: -10%; top: 70%; height: 2px; transform: rotate(14deg); background: rgba(255,255,255,0.14); }
+  .tile .pin {
+    position: absolute;
+    left: 50%; top: 46%;
+    width: 14px; height: 14px;
+    transform: translate(-50%,-50%);
+  }
+  .tile .pin .head {
+    width: 14px; height: 14px; border-radius: 50% 50% 50% 0;
+    background: #FF5252;
+    transform: rotate(-45deg);
+    box-shadow: 0 0 10px rgba(255,82,82,0.9), inset 1px 1px 2px rgba(255,255,255,0.5);
+    border: 1px solid rgba(255,255,255,0.4);
+  }
+  .tile .pulse {
+    position: absolute; left: 50%; top: 52%;
+    width: 30px; height: 30px; transform: translate(-50%,-50%);
+    border-radius: 50%;
+    border: 1.5px solid rgba(255,82,82,0.5);
+  }
+
+  .info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .info .city {
+    font-size: 18px; font-weight: 800; color: #ffffff; letter-spacing: -0.2px;
+    line-height: 1.1;
+  }
+  .info .addr {
+    font-size: 13px; font-weight: 500; color: #b6c8c1; line-height: 1.1;
+  }
+  .info .coord {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12.5px; color: #00E676; letter-spacing: 0.2px; margin-top: 4px;
+    line-height: 1.2;
+  }
+  .info .time {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px; color: #9fb8b0; letter-spacing: 0.2px;
+    line-height: 1.2;
+  }
+
+  /* glow accents */
+  .orb {
+    position: absolute; border-radius: 50%; filter: blur(60px); z-index: 1;
+  }
+  .orb.a { width: 260px; height: 260px; right: -40px; top: -60px; background: rgba(0,191,165,0.22); }
+  .orb.b { width: 220px; height: 220px; left: -50px; bottom: -70px; background: rgba(0,230,118,0.16); }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="grid"></div>
+    <div class="orb a"></div>
+    <div class="orb b"></div>
+
+    <!-- LEFT -->
+    <div class="left">
+      <div class="lockup">
+        <img src="file:///Users/omgupta/Documents/personal/projects/geo-tag/assets/icon/play_store_512.png" alt="GeoLens">
+        <div>
+          <div class="name"><span class="geo">Geo</span><span class="lens">Lens</span></div>
+          <div class="tag">GPS Map Camera</div>
+        </div>
+      </div>
+
+      <div class="headline">Proof in<br>every <span class="hl">photo.</span></div>
+
+      <div class="subtitle">GPS location, map &amp; timestamp <b>burned in</b> — permanently. All on-device.</div>
+
+      <div class="chips">
+        <div class="chip"><span class="dot">●</span> COORDINATES</div>
+        <div class="chip"><span class="dot">●</span> MAP TILE</div>
+        <div class="chip"><span class="dot">●</span> TIMESTAMP</div>
+      </div>
+    </div>
+
+    <!-- RIGHT — mock photo with watermark card -->
+    <div class="photo">
+      <div class="scene"></div>
+      <div class="grain"></div>
+      <div class="haze"></div>
+      <div class="rec"><span class="reddot"></span> GEO • LIVE</div>
+
+      <div class="card">
+        <div class="tile">
+          <div class="road1"></div>
+          <div class="road2"></div>
+          <div class="road3"></div>
+          <div class="pulse"></div>
+          <div class="pin"><div class="head"></div></div>
+        </div>
+        <div class="info">
+          <div class="city">New Delhi, India</div>
+          <div class="addr">Connaught Place, 110001</div>
+          <div class="coord">Lat 28.613900°&nbsp;&nbsp;Long 77.209000°</div>
+          <div class="time">Fri, 13/06/2026 03:15 PM GMT +05:30</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

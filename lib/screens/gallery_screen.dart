@@ -18,7 +18,6 @@ class _GalleryScreenState extends State<GalleryScreen> {
   List<Map<String, dynamic>> _photos = [];
   final Set<int> _selectedIds = {};
   bool _isSelectionMode = false;
-  final GlobalKey<AnimatedGridState> _gridKey = GlobalKey<AnimatedGridState>();
 
   @override
   void initState() {
@@ -63,6 +62,10 @@ class _GalleryScreenState extends State<GalleryScreen> {
   }
 
   Future<void> _deleteSelected() async {
+    // Capture the DB handle before the await so we never use BuildContext
+    // across the async gap of the dialog.
+    final db = Provider.of<DatabaseService>(context, listen: false);
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -80,15 +83,27 @@ class _GalleryScreenState extends State<GalleryScreen> {
     );
 
     if (confirmed == true) {
-      final db = Provider.of<DatabaseService>(context, listen: false);
       final idsToDelete = List<int>.from(_selectedIds);
-      
-      // We'll simulate the "liquid" grid shift by removing items and refreshing
-      // In a real high-end app, we'd use AnimatedGrid or similar.
+      // Map id -> file path so we can also remove the image from disk
+      // (deleting the DB row alone leaked the JPEG, growing storage forever).
+      final pathById = {
+        for (final p in _photos) p['id'] as int: p['file_path'] as String?
+      };
+
       for (var id in idsToDelete) {
         await db.deletePhoto(id);
+        final filePath = pathById[id];
+        if (filePath != null && filePath.isNotEmpty) {
+          try {
+            final file = File(filePath);
+            if (await file.exists()) await file.delete();
+          } catch (e) {
+            debugPrint('Failed to delete file $filePath: $e');
+          }
+        }
       }
-      
+
+      if (!mounted) return;
       setState(() {
         _selectedIds.clear();
         _isSelectionMode = false;
